@@ -1,0 +1,11 @@
+{
+  "name": "dominion-blog-cron",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node blog_cron.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.0"
+  }
+}
