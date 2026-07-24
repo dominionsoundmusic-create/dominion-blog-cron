@@ -143,6 +143,29 @@ const BRANDS = [
     style: 'authoritative, forward-thinking, business-focused',
     cta: 'Get your free AI strategy session at dominionaiagency.com',
     color: '#e53e3e'
+  },
+  {
+    name: 'Dominion Hard Money',
+    slug: 'dominion-hard-money',
+    repo_owner: 'dominionsoundmusic-create',
+    repo_name: 'dominion-hard-money-blog',
+    blog_path: 'blog',
+    domain: 'dominionhardmoney.com',
+    topics: [
+      'hard money loans',
+      'fix and flip financing',
+      'DSCR rental loans',
+      'bridge loans',
+      'real estate investing tips',
+      'private money lending',
+      'how to qualify for a hard money loan',
+      'fix and flip deals',
+      'real estate investor strategies',
+      'ARV and MAO explained'
+    ],
+    style: 'authoritative, trustworthy, investor-focused',
+    cta: 'Apply for funding at dominionhardmoney.com',
+    color: '#c9a84c'
   }
 ];
 
