@@ -283,6 +283,52 @@ const BRANDS = [
     color: '#8b1a1a'
   },
   {
+    name: 'Phoenix Pool Cleaning Pro',
+    slug: 'phoenix-pool',
+    repo_owner: 'dominionsoundmusic-create',
+    repo_name: 'phoenix-pool-cleaning-pro',
+    blog_path: 'blog',
+    domain: 'superlative-mandazi-aa17b9.netlify.app',
+    topics: [
+      'best pool cleaning service in Phoenix AZ',
+      'how to prevent algae in your Phoenix pool',
+      'pool chemical balancing tips for Phoenix homeowners',
+      'how often should you clean your pool in Phoenix',
+      'why Phoenix pools need weekly professional service',
+      'pool equipment repair Phoenix AZ what to know',
+      'best pool service companies in Scottsdale AZ',
+      'how monsoon season affects your Phoenix pool',
+      'pool cleaning cost in Phoenix AZ what to expect',
+      'how to keep your pool crystal clear in Arizona heat'
+    ],
+    style: 'local, practical, Phoenix-specific, homeowner focused',
+    cta: 'Get a free pool cleaning quote in Phoenix AZ',
+    color: '#0ea5e9'
+  },
+  {
+    name: 'Tucson Pool Cleaning Pro',
+    slug: 'tucson-pool',
+    repo_owner: 'dominionsoundmusic-create',
+    repo_name: 'tucson-pool-cleaning-pro',
+    blog_path: 'blog',
+    domain: 'tucsonpoolcleaningpro.netlify.app',
+    topics: [
+      'best pool cleaning service in Tucson AZ',
+      'how to maintain your pool in Tucson heat',
+      'pool algae prevention tips for Tucson homeowners',
+      'pool chemical service Tucson AZ',
+      'how often to clean your pool in Tucson Arizona',
+      'pool equipment repair Tucson AZ',
+      'best pool service in Marana and Oro Valley AZ',
+      'how Tucson monsoons affect your swimming pool',
+      'pool cleaning cost Tucson AZ guide',
+      'keeping your pool clean year round in Tucson'
+    ],
+    style: 'local, practical, Tucson-specific, homeowner focused',
+    cta: 'Get a free pool cleaning quote in Tucson AZ',
+    color: '#0ea5e9'
+  },
+  {
     name: 'Dominion Hard Money',
     slug: 'dominion-hard-money',
     repo_owner: 'dominionsoundmusic-create',
