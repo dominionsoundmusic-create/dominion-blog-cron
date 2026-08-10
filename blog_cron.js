@@ -4,7 +4,7 @@ const axios = require('axios');
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
-All Dominion brands and their blog configs
+// All Dominion brands and their blog configs
 const BRANDS = [
   {
     name: 'Dominion Web Design Pro',
@@ -485,17 +485,50 @@ async function commitToGitHub(owner, repo, path, content, message) {
   }
 }
 
+
+// List the slugs already published in a brand's blog folder.
+async function listPublishedSlugs(brand) {
+  try {
+    const res = await axios.get(
+      `https://api.github.com/repos/${brand.repo_owner}/${brand.repo_name}/contents/${brand.blog_path}`,
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' } }
+    );
+    // strip the -<timestamp> suffix so repeats of the same topic collapse together
+    return res.data
+      .filter(f => f.name.endsWith('.html') && f.name !== 'index.html')
+      .map(f => f.name.replace(/\.html$/, '').replace(/-\d{10,}$/, ''));
+  } catch (e) {
+    console.log('  (could not read existing posts, falling back to random)');
+    return null;
+  }
+}
+
 // Generate and publish one blog post for a brand
 async function publishBlogPost(brand) {
   console.log(`\n📝 Generating blog post for ${brand.name}...`);
 
-  // Pick a random topic
-  const topic = brand.topics[Math.floor(Math.random() * brand.topics.length)];
+  // Pick a topic this brand has not published yet. Only fall back to random
+  // once every topic is used, which is what caused the duplicate posts.
+  const year = new Date().getFullYear();
+  const resolve = t => t.replace('{year}', year).replace('{industry}', 'Local');
+  const published = await listPublishedSlugs(brand);
+  let topic;
+  if (published === null) {
+    topic = brand.topics[Math.floor(Math.random() * brand.topics.length)];
+  } else {
+    const unused = brand.topics.filter(t => !published.includes(slugify(resolve(t))));
+    if (unused.length) {
+      topic = unused[Math.floor(Math.random() * unused.length)];
+      console.log(`  ${unused.length} of ${brand.topics.length} topics still unpublished`);
+    } else {
+      console.log(`  every topic already published for ${brand.name} — skipping to avoid a duplicate`);
+      return { success: false, skipped: true, brand: brand.name, reason: 'all topics published' };
+    }
+  }
   console.log(`Topic: ${topic}`);
 
   // Generate content
   const content = await generateBlogPost(brand, topic);
-  const year = new Date().getFullYear();
   const resolvedTopic = topic.replace('{year}', year).replace('{industry}', 'Local');
   const slug = slugify(resolvedTopic) + '-' + Date.now();
 
