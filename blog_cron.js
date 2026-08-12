@@ -486,6 +486,150 @@ async function commitToGitHub(owner, repo, path, content, message) {
 }
 
 
+// ---------------------------------------------------------------------------
+// Multi-file commit via the git tree API.
+// One commit = one Netlify deploy. Writing the post, the blog index and the
+// sitemap as three separate contents-API calls would cost three deploys.
+// ---------------------------------------------------------------------------
+async function commitFiles(owner, repo, files, message) {
+  const H = { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' };
+  const base = `https://api.github.com/repos/${owner}/${repo}`;
+  try {
+    const ref = await axios.get(`${base}/git/ref/heads/main`, { headers: H });
+    const headSha = ref.data.object.sha;
+    const headCommit = await axios.get(`${base}/git/commits/${headSha}`, { headers: H });
+    const baseTree = headCommit.data.tree.sha;
+
+    const tree = [];
+    for (const f of files) {
+      const blob = await axios.post(`${base}/git/blobs`,
+        { content: Buffer.from(f.content).toString('base64'), encoding: 'base64' },
+        { headers: H });
+      tree.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.data.sha });
+    }
+
+    const newTree = await axios.post(`${base}/git/trees`, { base_tree: baseTree, tree }, { headers: H });
+    const commit = await axios.post(`${base}/git/commits`,
+      { message, tree: newTree.data.sha, parents: [headSha] }, { headers: H });
+    await axios.patch(`${base}/git/refs/heads/main`, { sha: commit.data.sha }, { headers: H });
+    return true;
+  } catch (err) {
+    console.error('GitHub tree commit error:', err.response?.data || err.message);
+    return false;
+  }
+}
+
+// Turn a post filename into a readable title: strips .html and the -<timestamp>
+function titleFromSlug(name) {
+  const s = name.replace(/\.html$/, '').replace(/-\d{10,}$/, '');
+  return s.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Full list of post files in a brand's blog folder, newest first
+async function listPostFiles(brand) {
+  try {
+    const res = await axios.get(
+      `https://api.github.com/repos/${brand.repo_owner}/${brand.repo_name}/contents/${brand.blog_path}`,
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' } }
+    );
+    return res.data
+      .filter(f => f.name.endsWith('.html') && f.name !== 'index.html')
+      .map(f => f.name)
+      .sort((a, b) => {
+        const ta = parseInt((a.match(/-(\d{10,})\.html$/) || [0, 0])[1], 10);
+        const tb = parseInt((b.match(/-(\d{10,})\.html$/) || [0, 0])[1], 10);
+        return tb - ta;
+      });
+  } catch (e) {
+    return [];
+  }
+}
+
+// Build blog/index.html listing every post, so posts stop being orphans
+function buildBlogIndex(brand, fileNames) {
+  const items = fileNames.map(n => {
+    const ts = parseInt((n.match(/-(\d{10,})\.html$/) || [0, 0])[1], 10);
+    const when = ts ? new Date(ts).toLocaleDateString('en-US',
+      { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+    return `    <li><a href="/${brand.blog_path}/${n}">${titleFromSlug(n)}</a>` +
+           (when ? `<span class="d">${when}</span>` : '') + `</li>`;
+  }).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog | ${brand.name}</title>
+<meta name="description" content="Articles and advice from ${brand.name}.">
+<link rel="canonical" href="https://${brand.domain}/${brand.blog_path}/">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;line-height:1.7}
+header{background:#0a0a0a;color:#fff;padding:16px 24px}
+header a{color:${brand.color};font-weight:800;text-decoration:none;font-size:1.2rem}
+.wrap{max-width:800px;margin:0 auto;padding:40px 24px}
+h1{font-size:2rem;font-weight:800;margin-bottom:8px}
+.sub{color:#777;margin-bottom:28px}
+ul{list-style:none}
+li{padding:16px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+li a{color:#0a0a0a;text-decoration:none;font-weight:600}
+li a:hover{color:${brand.color}}
+.d{color:#999;font-size:.87rem;white-space:nowrap}
+footer{padding:28px 24px;text-align:center;color:#888;font-size:.9rem;border-top:1px solid #eee}
+</style>
+</head>
+<body>
+<header><a href="https://${brand.domain}/">${brand.name}</a></header>
+<div class="wrap">
+  <h1>Blog</h1>
+  <p class="sub">${fileNames.length} article${fileNames.length === 1 ? '' : 's'} from ${brand.name}.</p>
+  <ul>
+${items}
+  </ul>
+</div>
+<footer><a href="https://${brand.domain}/">Back to ${brand.name}</a></footer>
+</body>
+</html>`;
+}
+
+// Add the blog index and every post to sitemap.xml, without disturbing the
+// city-page URLs the site builder puts there.
+function buildSitemap(existingXml, brand, fileNames) {
+  const today = new Date().toISOString().slice(0, 10);
+  const blogBase = `https://${brand.domain}/${brand.blog_path}/`;
+  const wanted = [blogBase, ...fileNames.map(n => blogBase + n)];
+
+  let xml = existingXml && existingXml.includes('<urlset')
+    ? existingXml
+    : `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>`;
+
+  // drop any existing blog entries so the list is rebuilt cleanly
+  xml = xml.replace(
+    new RegExp(`\\s*<url>(?:(?!</url>)[\\s\\S])*?<loc>\\s*${blogBase.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}[^<]*</loc>[\\s\\S]*?</url>`, 'g'),
+    ''
+  );
+
+  const block = wanted.map(u =>
+    `  <url>\n    <loc>${u}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>monthly</changefreq>\n  </url>`
+  ).join('\n');
+
+  return xml.replace('</urlset>', block + '\n</urlset>');
+}
+
+async function fetchRepoFile(brand, path) {
+  try {
+    const res = await axios.get(
+      `https://api.github.com/repos/${brand.repo_owner}/${brand.repo_name}/contents/${path}`,
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' } }
+    );
+    return Buffer.from(res.data.content, 'base64').toString('utf-8');
+  } catch (e) {
+    return null;
+  }
+}
+
+
 // List the slugs already published in a brand's blog folder.
 async function listPublishedSlugs(brand) {
   try {
@@ -535,13 +679,21 @@ async function publishBlogPost(brand) {
   // Wrap in full HTML page
   const html = wrapBlogPost(brand, topic, content, slug);
 
-  // Commit to GitHub
+  // Commit the post, a rebuilt blog index and an updated sitemap as ONE commit.
+  // One commit = one Netlify deploy. Separate calls would cost three.
   const path = `${brand.blog_path}/${slug}.html`;
-  const committed = await commitToGitHub(
+  const priorFiles = await listPostFiles(brand);
+  const allFiles = [`${slug}.html`, ...priorFiles.filter(n => n !== `${slug}.html`)];
+  const existingSitemap = await fetchRepoFile(brand, 'sitemap.xml');
+
+  const committed = await commitFiles(
     brand.repo_owner,
     brand.repo_name,
-    path,
-    html,
+    [
+      { path, content: html },
+      { path: `${brand.blog_path}/index.html`, content: buildBlogIndex(brand, allFiles) },
+      { path: 'sitemap.xml', content: buildSitemap(existingSitemap, brand, allFiles) }
+    ],
     `Add blog post: ${resolvedTopic}`
   );
 
@@ -627,31 +779,16 @@ async function main() {
   
   for (const brand of BRANDS) {
     try {
-      const topic = brand.topics[Math.floor(Math.random() * brand.topics.length)];
-      console.log('\n▶ ' + brand.name + ': ' + topic);
-      
-      const postContent = await generateBlogPost(brand, topic);
-      const year = new Date().getFullYear();
-      const resolvedTopic = topic.replace('{year}', year).replace('{industry}', 'Local');
-      const slug = slugify(resolvedTopic) + '-' + Date.now();
-      const html = wrapBlogPost(brand, resolvedTopic, postContent, slug);
-      
-      await commitToGitHub(
-        brand.repo_owner,
-        brand.repo_name,
-        brand.blog_path + '/' + slug + '.html',
-        html,
-        'Daily blog: ' + resolvedTopic
-      );
-      
-      console.log('✅ Published: ' + brand.name);
-      await new Promise(r => setTimeout(r, 3000));
+      // Delegate to publishBlogPost so the index + sitemap fix applies here too
+      const r = await publishBlogPost(brand);
+      if (r.skipped) console.log('  skipped: ' + r.reason);
+      await new Promise(r2 => setTimeout(r2, 3000));
     } catch(err) {
       console.error('❌ ' + brand.name + ':', err.message);
     }
   }
   
-  console.log('\n✅ All 6 brands done.');
+  console.log('\n✅ All ' + BRANDS.length + ' brands done.');
   process.exit(0);
 }
 
