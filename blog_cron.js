@@ -7,6 +7,29 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 // All Dominion brands and their blog configs
 const BRANDS = [
   {
+    name: 'Grace Woodwork',
+    slug: 'grace-woodwork',
+    repo_owner: 'dominionsoundmusic-create',
+    repo_name: 'grace-woodwork-site',
+    blog_path: 'blog',
+    domain: 'gracewoodworkkilgore.com',
+    topics: [
+      'how to tell if an old piece of furniture is worth restoring',
+      'refinishing vs repainting old furniture which is right',
+      'how much does furniture restoration cost',
+      'caring for solid wood furniture in East Texas humidity',
+      'what to look for when buying antique furniture',
+      'how to fix a wobbly chair that keeps coming loose',
+      'custom built ins vs store bought shelving',
+      'choosing wood for a farmhouse table that will last',
+      'signs your kitchen cabinets can be refaced instead of replaced',
+      'restoring a family heirloom what to expect'
+    ],
+    style: 'warm, practical, craftsman voice, East Texas local',
+    cta: 'Talk to Grace Woodwork in Kilgore about your piece at gracewoodworkkilgore.com',
+    color: '#C79045'
+  },
+  {
     name: 'Dominion Web Design Pro',
     slug: 'web-design',
     repo_owner: 'dominionsoundmusic-create',
